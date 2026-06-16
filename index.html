@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Findor - RevOps Analytics | Minas Motos</title>
+    <title id="page-title">Findor - RevOps Analytics | Ana</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -33,20 +33,32 @@
     </style>
 </head>
 <body class="min-h-screen p-4 sm:p-6 md:p-8">
-
-    <header class="relative flex justify-between items-center mb-10 border-b border-findor-border pb-6">
+    <header class="relative flex flex-col md:flex-row justify-between items-center mb-10 border-b border-findor-border pb-6 gap-4">
         <div><span class="text-4xl font-bold text-findor-text tracking-tighter">Findor</span></div>
-        <div class="absolute left-1/2 -translate-x-1/2 text-center">
+        <div class="md:absolute md:left-1/2 md:-translate-x-1/2 text-center">
             <h1 class="text-xl font-semibold tracking-tight text-findor-text">RevOps & Sales Dashboard</h1>
             <p class="text-sm text-findor-muted">Inteligência Operacional: Minas Motos</p>
         </div>
-        <div class="flex items-center gap-3 bg-transparent text-sm">
-            <span id="loading-status" class="text-findor-accent animate-pulse text-xs font-bold mr-4">Sincronizando...</span>
-            <span class="text-findor-muted font-medium">Mês de Análise:</span>
-            <!-- O select agora está vazio, será preenchido dinamicamente pelo JS -->
-            <select id="month-filter" onchange="updateDashboardData()" class="font-semibold text-findor-text bg-white border border-[#E5E7EB] px-4 py-2 rounded-md shadow-sm focus:outline-none focus:border-findor-accent cursor-pointer">
-                <!-- Opções injetadas pelo JavaScript -->
-            </select>
+        
+        <div class="flex items-center gap-3 bg-transparent text-sm flex-wrap justify-end">
+            <span id="loading-status" class="text-findor-accent animate-pulse text-xs font-bold mr-4 hidden sm:block">Sincronizando...</span>
+            
+            <!-- Filtro de Personagem (SDR) -->
+            <div class="flex items-center gap-2">
+                <span class="text-findor-muted font-medium">SDR:</span>
+                <select id="char-filter" onchange="changeCharacter()" class="font-bold text-findor-accent bg-[rgba(26,75,237,0.08)] border border-transparent px-3 py-1 rounded-md shadow-sm focus:outline-none cursor-pointer">
+                    <option value="ana">Ana</option>
+                    <option value="bruna">Bruna</option>
+                </select>
+            </div>
+
+            <!-- Filtro de Mês -->
+            <div class="flex items-center gap-2">
+                <span class="text-findor-muted font-medium ml-2">Mês:</span>
+                <select id="month-filter" onchange="updateDashboardData()" class="font-semibold text-findor-text bg-white border border-[#E5E7EB] px-4 py-2 rounded-md shadow-sm focus:outline-none focus:border-findor-accent cursor-pointer">
+                    <option value="carregando">Carregando...</option>
+                </select>
+            </div>
         </div>
     </header>
 
@@ -56,7 +68,7 @@
             <p id="kpi-marketing" class="text-3xl font-bold text-findor-text mt-1">-</p>
         </div>
         <div class="authority-card p-5 border-findor-accent bg-[rgba(26,75,237,0.03)]">
-            <h3 class="text-findor-accent font-medium text-sm">Gerenciados pela SDR (Ana)</h3>
+            <h3 class="text-findor-accent font-medium text-sm" id="sdr-title">Gerenciados pela SDR (Ana)</h3>
             <p id="kpi-sdr" class="text-3xl font-bold text-findor-accent mt-1">-</p>
         </div>
         <div class="authority-card p-5">
@@ -87,7 +99,6 @@
                 <div class="relative h-64 w-full"><canvas id="chartProduto"></canvas></div>
             </div>
         </div>
-
         <div class="space-y-8">
             <div class="authority-card p-6">
                 <div class="mb-4">
@@ -120,22 +131,37 @@
         
         let charts = {}; 
         let parsedData = []; 
+        let currentCharacter = 'ana'; 
         
-        const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS4KgAnD4Z1ickZIN_eB5JIk690UVmLEt_RJGfep76ZWf6XcSsmKhdYaHKXQ-o3IXeIIpASvyNZxyg2/pub?output=csv";
+        // --- ARQUITETURA DE DADOS: URLs DAS PLANILHAS ---
+        const SHEETS_URLS = {
+            ana: "https://docs.google.com/spreadsheets/d/e/2PACX-1vS4KgAnD4Z1ickZIN_eB5JIk690UVmLEt_RJGfep76ZWf6XcSsmKhdYaHKXQ-o3IXeIIpASvyNZxyg2/pub?gid=0&single=true&output=csv",
+            bruna: "https://docs.google.com/spreadsheets/d/e/2PACX-1vS4KgAnD4Z1ickZIN_eB5JIk690UVmLEt_RJGfep76ZWf6XcSsmKhdYaHKXQ-o3IXeIIpASvyNZxyg2/pub?gid=184022760&single=true&output=csv"
+        };
+
+        function changeCharacter() {
+            currentCharacter = document.getElementById('char-filter').value;
+            
+            let charName = currentCharacter.charAt(0).toUpperCase() + currentCharacter.slice(1);
+            document.title = `Findor - RevOps Analytics | ${charName}`;
+            document.getElementById('sdr-title').innerText = `Gerenciados pela SDR (${charName})`;
+
+            const status = document.getElementById('loading-status');
+            status.innerText = "Trocando SDR...";
+            status.className = "text-findor-accent animate-pulse text-xs font-bold mr-4 block";
+
+            fetchSheetData();
+        }
 
         function fetchSheetData() {
-            const NO_CACHE_URL = SHEETS_CSV_URL + "&t=" + new Date().getTime();
-
+            const NO_CACHE_URL = SHEETS_URLS[currentCharacter] + "&t=" + new Date().getTime();
             Papa.parse(NO_CACHE_URL, {
                 download: true, 
                 skipEmptyLines: true,
                 complete: function(results) {
                     if(results.data && results.data.length > 0) {
                         parsedData = results.data;
-                        
-                        // NOVO: Chama a função para construir o filtro de meses antes de renderizar
                         popularFiltroDeMeses(parsedData);
-                        
                         updateDashboardData();
                     } else {
                         throwErrorUI("Planilha vazia ou estruturada incorretamente.");
@@ -151,45 +177,36 @@
         function throwErrorUI(mensagem) {
             const status = document.getElementById('loading-status');
             status.innerText = mensagem;
-            status.classList.remove('text-findor-accent', 'animate-pulse');
-            status.classList.add('text-red-600', 'bg-red-50', 'px-2', 'py-1', 'rounded');
+            status.className = "text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-bold mr-4 block";
         }
 
-        // NOVO: Lê os cabeçalhos da primeira tabela para descobrir os meses disponíveis na planilha
         function popularFiltroDeMeses(linhas) {
             const selectElement = document.getElementById('month-filter');
-            selectElement.innerHTML = ''; // Limpa o select
-
-            // Adiciona a opção padrão sempre presente
+            selectElement.innerHTML = ''; 
+            
             let optionTotal = document.createElement("option");
             optionTotal.value = "total geral";
             optionTotal.text = "Total Geral";
             selectElement.appendChild(optionTotal);
-
-            // Caça os meses na linha que começa com "Mídia"
+            
             for (let i = 0; i < linhas.length; i++) {
                 let row = linhas[i];
                 if (row[0] && String(row[0]).trim() === "Mídia") {
-                    // Ignora a primeira coluna ('Mídia')
                     for(let j = 1; j < row.length; j++) {
                         let cabecalho = String(row[j]).trim().toLowerCase();
                         if (cabecalho && cabecalho !== "total geral" && cabecalho !== "nan" && cabecalho !== "") {
-                            // Extrai apenas o mês (antes da barra, ex: "junho" de "junho/2026")
                             let mesPuro = cabecalho.split('/')[0];
-                            
-                            // Cria a opção no HTML capitalizando a primeira letra (ex: "Junho")
                             let option = document.createElement("option");
                             option.value = mesPuro;
                             option.text = mesPuro.charAt(0).toUpperCase() + mesPuro.slice(1) + (cabecalho.includes('/') ? " " + cabecalho.split('/')[1] : "");
                             selectElement.appendChild(option);
                         }
                     }
-                    break; // Achou os meses, pode parar de procurar.
+                    break; 
                 }
             }
         }
 
-        // MOTOR DE EXTRAÇÃO REVOLUCIONADO
         function processarDados(linhas, monthFilter) {
             let currentSection = "";
             let midia = {}, evento = {}, produto = {}, insucesso = {}, status = {}, vendedorStats = {};
@@ -197,7 +214,7 @@
             
             let columnMap = {}; 
             let headerMap = { neg: -1, ganho: -1, perd: -1 };
-
+            
             const getSeguro = (row, filter) => {
                 let mappedKey = Object.keys(columnMap).find(k => k.includes(filter.toLowerCase()));
                 let mappedIdx = columnMap[mappedKey];
@@ -213,15 +230,14 @@
                 let row = linhas[i];
                 
                 if (!row.some(cell => String(cell).trim() !== "")) continue;
-
                 let firstCol = String(row[0] || "").trim();
-
+                
                 if (firstCol && (firstCol.includes("Distribuição por") || firstCol.includes("Distribuição Por"))) {
                     currentSection = firstCol;
                     columnMap = {}; 
                     continue;
                 }
-
+                
                 if (currentSection === "Distribuição por Mídia") {
                     if (firstCol === "Mídia") {
                         row.forEach((h, idx) => { if(h && String(h).trim() !== "") columnMap[String(h).toLowerCase().trim()] = idx; });
@@ -298,14 +314,14 @@
                          });
                          continue; 
                     }
-
                     if (firstCol && firstCol !== "Mês" && !firstCol.toLowerCase().includes("total") && !firstCol.includes("Distribuição")) {
                         columnMap['mesTabela'] = firstCol.split('/')[0].toLowerCase();
                     }
                     
                     if ((columnMap['mesTabela'] === monthFilter || monthFilter === "total geral") && row[1]) {
-                        if (String(row[1]).includes("[ADM]") || String(row[1]).includes("[MBH]")) {
-                            let nome = String(row[1]).replace("[MBH]", "").replace("[ADM]", "").trim();
+                        let rawNome = String(row[1]);
+                        if (rawNome.includes("[") && rawNome.includes("]")) {
+                            let nome = rawNome.replace(/\[.*?\]/g, "").trim();
                             
                             let neg = parseInt(row[headerMap.neg]) || 0;
                             let ganho = parseInt(row[headerMap.ganho]) || 0;
@@ -339,7 +355,6 @@
                 console.warn("Filtro sem dados retornados.");
                 return;
             }
-
             renderizarVisual(payload); 
         }
 
@@ -347,23 +362,23 @@
             
             document.getElementById('kpi-marketing').innerText = data.kpiTotalAtracao.toLocaleString('pt-BR');
             
-            let sdrStats = data.vendedorStats['ANA'] || {negociacao:0, ganho:0, perdido:0};
-            let totalAna = sdrStats.negociacao + sdrStats.ganho + sdrStats.perdido;
-            document.getElementById('kpi-sdr').innerText = totalAna.toLocaleString('pt-BR');
+            let charToUpper = currentCharacter.toUpperCase();
+            let sdrStats = data.vendedorStats[charToUpper] || {negociacao:0, ganho:0, perdido:0};
+            let totalSdr = sdrStats.negociacao + sdrStats.ganho + sdrStats.perdido;
+            document.getElementById('kpi-sdr').innerText = totalSdr.toLocaleString('pt-BR');
             
-            let totalClosersGanhos = 0;
-            Object.entries(data.vendedorStats).forEach(([nome, stats]) => {
-                if (nome !== 'ANA') totalClosersGanhos += stats.ganho;
-            });
-            document.getElementById('kpi-closers').innerText = totalClosersGanhos.toLocaleString('pt-BR');
+            // CORREÇÃO CRÍTICA DO KPI: Lendo os Ganhos absolutos diretamente da Tabela de Status Geral 
+            // e não dos vendedores individuais (para incluir fechamentos sem vendedor registrado).
+            let totalVendasGlobais = data.status['Ganho'] || 0;
+            document.getElementById('kpi-closers').innerText = totalVendasGlobais.toLocaleString('pt-BR');
             
             const status = document.getElementById('loading-status');
             status.innerText = "Sincronizado (Ao Vivo)";
-            status.className = "text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-bold mr-4";
-
+            status.className = "text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-bold mr-4 block";
+            
             Object.keys(charts).forEach(key => { if(charts[key]) charts[key].destroy(); });
             const commonOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
-
+            
             charts.midia = new Chart(document.getElementById('chartMidia'), {
                 type: 'doughnut',
                 data: { 
@@ -372,20 +387,20 @@
                 },
                 options: { ...commonOptions, cutout: '70%', plugins: { datalabels: { display: false }, legend: { display: true, position: 'right' } } }
             });
-
+            
             charts.evento = new Chart(document.getElementById('chartEvento'), {
                 type: 'bar',
                 data: { labels: Object.keys(data.evento), datasets: [{ data: Object.values(data.evento), backgroundColor: '#1A4BED', borderRadius: 4 }] },
                 options: { ...commonOptions, indexAxis: 'y', layout: { padding: { right: 40 } }, scales: { x: { display: false }, y: { grid: { display: false } } }, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'end', color: '#111827', font: { weight: 'bold'} } } }
             });
-
+            
             const topProdutos = extractTop(data.produto, 10);
             charts.produto = new Chart(document.getElementById('chartProduto'), {
                 type: 'bar',
                 data: { labels: Object.keys(topProdutos), datasets: [{ data: Object.values(topProdutos), backgroundColor: '#4B5563', borderRadius: 4 }] },
                 options: { ...commonOptions, layout: { padding: { top: 30 } }, scales: { x: { grid: { display: false }, ticks: {maxRotation: 45, minRotation: 45} }, y: { display: false } }, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', color: '#111827', font: { weight: 'bold'} } } }
             });
-
+            
             charts.status = new Chart(document.getElementById('chartStatus'), {
                 type: 'bar',
                 data: { 
@@ -394,8 +409,8 @@
                 },
                 options: { ...commonOptions, indexAxis: 'y', layout: { padding: { right: 40 } }, scales: { x: { display: false }, y: { grid: { display: false } } }, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'end', color: '#111827', font: { weight: 'bold'} } } }
             });
-
-            const vendedoresLabels = Object.keys(data.vendedorStats).filter(v => v !== 'ANA');
+            
+            const vendedoresLabels = Object.keys(data.vendedorStats).filter(v => v !== charToUpper);
             charts.vendedor = new Chart(document.getElementById('chartVendedor'), {
                 type: 'bar',
                 data: { 
@@ -427,7 +442,7 @@
                     }
                 }
             });
-
+            
             const topInsucesso = extractTop(data.insucesso, 10);
             charts.insucesso = new Chart(document.getElementById('chartInsucesso'), {
                 type: 'bar',
@@ -435,7 +450,7 @@
                 options: { ...commonOptions, indexAxis: 'y', layout: { padding: { right: 40 } }, scales: { x: { display: false }, y: { grid: { display: false } } }, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'end', color: '#6B7280', font: { weight: 'bold'} } } }
             });
         }
-
+        
         window.onload = fetchSheetData;
     </script>
 </body>
